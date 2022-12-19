@@ -116,14 +116,17 @@ def add_comment(request, post_id):
     """
     Добавит комментарий к посту.
     """
-    post = get_object_or_404(Post, id=post_id)
-    form = CommentForm(request.POST or None)
-    if form.is_valid():
-        comment = form.save(commit=False)
-        comment.author = request.user
-        comment.post = post
-        comment.save()
-    return redirect('posts:post_detail', post_id=post_id)
+    if request.method == 'POST':
+        post = get_object_or_404(Post, id=post_id)
+        form = CommentForm(request.POST or None)
+        if form.is_valid():
+            comment = form.save(commit=False)
+            comment.author = request.user
+            comment.post = post
+            comment.save()
+        return redirect('posts:post_detail', post_id=post_id)
+    form = CommentForm()
+    return render(request, 'posts:post_detail', {'form': form})
 
 
 @login_required

@@ -112,3 +112,15 @@ class Follow(models.Model):
     def __str__(self):
         """Вернет информацию о подписке."""
         return f'{self.user} подписался на {self.author}'
+
+    class Meta:
+        """
+        Создание уникальных пар между автором и подписчиком.
+        """
+        verbose_name_plural = 'Подписки'
+        verbose_name = 'Подписка'
+        constraints = (
+            models.UniqueConstraint(
+                fields=['user', 'author'],
+                name='unique_connection')
+        )

@@ -8,7 +8,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from ..forms import PostForm
+from ..forms import PostForm, CommentForm
 from ..models import Comment, Follow, Group, Post
 
 User = get_user_model()
@@ -53,11 +53,17 @@ class PostPagesTests(TestCase):
             description='Тестовое описание 2',
         )
         cls.post_2 = Post.objects.create(
-            author=cls.user,
+            author=cls.user_2,
             text='Тестовый пост 2',
             group=cls.group_2,
             image=uploaded,
         )
+        cls.comment = Comment.objects.create(
+            post=cls.post,
+            author=cls.user,
+            text='Тестовый комментарий'
+        )
+        cls.follow = Follow.objects.create(user=cls.user, author=cls.user_2)
 
     @classmethod
     def tearDownClass(cls):
@@ -68,7 +74,7 @@ class PostPagesTests(TestCase):
         self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
-        self.author = User.objects.get(username='auth')
+        self.author = User.objects.get(username='auth1')
         self.post_author = Client()
         self.post_author.force_login(self.author)
 
@@ -96,7 +102,7 @@ class PostPagesTests(TestCase):
     def test_page_for_post_author_uses_correct_template(self):
         """URL-адрес использует соответствующий шаблон."""
         response = self.post_author.get(
-            reverse('posts:post_edit', kwargs={'post_id': self.post.id})
+            reverse('posts:post_edit', kwargs={'post_id': self.post_2.id})
         )
         self.assertTemplateUsed(response, 'posts/create_post.html')
 
@@ -122,23 +128,34 @@ class PostPagesTests(TestCase):
         )
 
         first_object = response.context['group']
+        second_object = response.context['page_obj'][0]
         self.assertEqual(first_object, self.group)
+        self.assertEqual(second_object, self.post)
 
     def test_profile_page_show_correct_context(self):
         """Шаблон profile сформирован с правильным контекстом."""
         response = self.authorized_client.get(
-            reverse('posts:profile', kwargs={'username': 'auth'})
+            reverse('posts:profile', kwargs={'username': 'auth1'})
         )
         first_object = response.context['author']
-        self.assertEqual(first_object, self.user)
+        second_object = response.context['page_obj'][0]
+        self.assertEqual(first_object, self.user_2)
+        self.assertEqual(second_object, self.post_2)
+        self.assertTrue(response.context['following'])
 
     def test_post_detail_show_correct_context(self):
         """Шаблон post_detail сформирован с правильным контекстом."""
         response = self.authorized_client.get(
             reverse('posts:post_detail', kwargs={'post_id': self.post.id})
         )
-        first_object = response.context['post']
-        self.assertEqual(first_object, self.post)
+        object_1 = response.context['post']
+        object_2 = response.context['author']
+        object_3 = response.context['comments'][0]
+        form_field = response.context['form']
+        self.assertEqual(object_1, self.post)
+        self.assertEqual(object_2, self.user)
+        self.assertEqual(object_3, self.comment)
+        self.assertIsInstance(form_field, CommentForm)
 
     def test_post_create_show_correct_context(self):
         """Проверка формы post_create."""
@@ -149,10 +166,14 @@ class PostPagesTests(TestCase):
     def test_post_edit_show_correct_context(self):
         """Проверка формы post_edit."""
         response = self.post_author.get(
-            reverse('posts:post_edit', kwargs={'post_id': self.post.id})
+            reverse('posts:post_edit', kwargs={'post_id': self.post_2.id})
         )
         form_field = response.context['form']
+        object_1 = response.context['post']
+        object_2 = response.context['is_edit']
         self.assertIsInstance(form_field, PostForm)
+        self.assertEqual(object_1, self.post_2)
+        self.assertTrue(object_2)
 
     def test_post_added_correctly(self):
         """Пост при создании добавлен корректно"""
